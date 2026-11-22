@@ -51,14 +51,15 @@ If you're searching for an **Amphetamine alternative**, a **closed-lid / clamshe
 
 ## Install
 
-1. Download `Argus-x.y.z.zip` from [**Releases**](../../releases/latest) and unzip it.
-2. Move `Argus.app` to `/Applications`.
-3. The app is not notarized by Apple (it's a free open-source project), so on first launch run:
-   ```bash
-   xattr -dr com.apple.quarantine /Applications/Argus.app
-   ```
-   Or right-click → Open → Open.
-4. Click the 👁 icon in the menu bar. Open **Settings → Passwordless toggle** and enter your password once.
+1. Download **`Argus-x.y.z.dmg`** from [**Releases**](../../releases/latest), open it, and drag **Argus** onto **Applications**.
+2. Open Argus from Applications. Because Argus is a free open-source app that isn't notarized by Apple ($99/year developer program), macOS will say *"Apple could not verify 'Argus' is free of malware"*. Click **Done** (**not** Move to Trash), then:
+   - Open **System Settings → Privacy & Security**, scroll down to *"Argus" was blocked…*, and click **Open Anyway** → enter your password → **Open Anyway**.
+   - Or run this once in Terminal:
+     ```bash
+     xattr -dr com.apple.quarantine /Applications/Argus.app
+     ```
+   You only need to do this once. The full source is in this repo, and you can build it yourself (see below).
+3. Click the 👁 icon in the menu bar. Open **Settings → Passwordless toggle** and enter your password once.
 
 ### Build from source
 
@@ -131,12 +132,14 @@ Argus 就是为了解决这个问题而做的：**合盖瞬间主动熄灭所有
 
 ### 安装
 
-1. 从 [**Releases**](../../releases/latest) 下载 `Argus-x.y.z.zip`，解压后把 `Argus.app` 拖进「应用程序」文件夹
-2. 应用没有经过苹果公证，首次打开前在终端运行：
-   ```bash
-   xattr -dr com.apple.quarantine /Applications/Argus.app
-   ```
-   或者在应用上右键 → 打开 → 打开
+1. 从 [**Releases**](../../releases/latest) 下载 **`Argus-x.y.z.dmg`**，双击打开，把 **Argus** 拖到 **应用程序**
+2. 从「应用程序」里打开 Argus。因为 Argus 是免费开源软件，没有付费参加苹果的开发者计划（99 美元/年）做公证，系统会提示 **「Apple 无法验证"Argus"是否包含可能危害 Mac 安全或泄漏隐私的恶意软件」**。这时点 **完成**，**不要**点「移到废纸篓」，然后二选一：
+   - 打开 **系统设置 → 隐私与安全性**，往下滚到「已阻止"Argus"…」，点 **仍要打开**，输入密码，再点 **仍要打开**
+   - 或者在终端运行一次：
+     ```bash
+     xattr -dr com.apple.quarantine /Applications/Argus.app
+     ```
+   这一步只需要做一次。全部源码都在这个仓库里，你也可以自己编译。
 3. 点击菜单栏的 👁 图标，进入「设置 → 免密切换」，输一次密码
 
 ### 注意

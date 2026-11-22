@@ -1,7 +1,7 @@
 #!/bin/zsh
 # 编译 Argus.app（Universal：Apple Silicon + Intel），只需 Xcode Command Line Tools
 # 用法：./build.sh          → build/Argus.app
-#       ./build.sh release  → 另外打包 dist/Argus-<版本>.zip
+#       ./build.sh release  → 另外打包 dist/Argus-<版本>.dmg 和 .zip
 set -e
 cd "$(dirname "$0")"
 
@@ -53,5 +53,6 @@ echo "Built $PWD/$APP"
 if [[ "$1" == "release" ]]; then
   mkdir -p dist
   ditto -c -k --keepParent "$APP" "dist/Argus-$VERSION.zip"
-  shasum -a 256 "dist/Argus-$VERSION.zip"
+  scripts/make_dmg.sh "$APP" "dist/Argus-$VERSION.dmg"
+  shasum -a 256 dist/Argus-$VERSION.*
 fi
