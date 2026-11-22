@@ -60,7 +60,7 @@ struct HeaderCard: View {
                     .shadow(color: c.isOn ? accent.opacity(0.5) : .clear, radius: 8)
 
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("Argus").font(.headline)
+                    Text("ArgusLid").font(.headline)
                     HStack(spacing: 5) {
                         Circle().fill(c.isOn ? accent : Color.secondary.opacity(0.5)).frame(width: 6, height: 6)
                         Text(subtitle).font(.system(.caption, design: .monospaced)).foregroundStyle(.secondary)

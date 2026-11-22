@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="docs/icon.png" width="128" alt="Argus icon">
+  <img src="docs/icon.png" width="128" alt="ArgusLid icon">
 </p>
 
-<h1 align="center">Argus</h1>
+<h1 align="center">ArgusLid</h1>
 
 <p align="center">
   <b>Close the lid. Screen goes dark. Your Mac keeps working.</b><br>
@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="../../releases/latest"><img src="https://img.shields.io/github/v/release/GZhengHao/Argus?label=download" alt="Download"></a>
+  <a href="../../releases/latest"><img src="https://img.shields.io/github/v/release/GZhengHao/argus-lid?label=download" alt="Download"></a>
   <img src="https://img.shields.io/badge/macOS-26%2B-black" alt="macOS 26+">
   <img src="https://img.shields.io/badge/Apple%20Silicon%20%2B%20Intel-universal-green" alt="Universal">
   <img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT">
@@ -20,11 +20,11 @@
 
 ---
 
-Argus is a tiny macOS menu bar app that keeps your MacBook **running with the lid closed**, on battery, with **no external display, keyboard or mouse needed**. And unlike most keep-awake tools, it makes sure the **screen actually turns off** when you close the lid.
+ArgusLid is a tiny macOS menu bar app that keeps your MacBook **running with the lid closed**, on battery, with **no external display, keyboard or mouse needed**. And unlike most keep-awake tools, it makes sure the **screen actually turns off** when you close the lid.
 
 Downloads, builds, renders, backups, SSH sessions, local LLMs, AI agents and servers keep going while the lid is shut. The display stays dark and cool.
 
-> **Why the name?** In Greek myth, Argus Panoptes was the hundred-eyed giant who never fully slept: he closed only some of his eyes and the rest kept watch. Your lid is closed, but your Mac is still awake.
+> **Why the name?** In Greek myth, Argus Panoptes was the hundred-eyed giant who never fully slept: he closed only some of his eyes and the rest kept watch. **ArgusLid**: the lid is closed, but your Mac is still awake.
 
 ## Why another keep-awake app?
 
@@ -33,9 +33,9 @@ There are plenty of good "keep awake" apps for macOS: **Amphetamine**, **Keeping
 1. **Tools built on power assertions** (`caffeinate`, KeepingYouAwake, Caffeine, Lungo, Theine…) stop *idle* sleep. But macOS still forces sleep **the moment you close the lid**, unless you're in Apple's clamshell mode (charger + external display + keyboard/mouse).
 2. **Tools that do keep the Mac awake with the lid closed** often leave the **built-in display backlight on** behind the closed lid. That wastes battery, adds heat and can cause burn-in.
 
-Argus was built to fix exactly that:
+ArgusLid was built to fix exactly that:
 
-| | Argus |
+| | ArgusLid |
 |---|---|
 | Stays awake with the lid closed, on battery, no external display | ✅ |
 | Turns **all screens off** the instant the lid closes | ✅ |
@@ -51,12 +51,12 @@ If you're searching for an **Amphetamine alternative**, a **closed-lid / clamshe
 
 ## Install
 
-1. Download **`Argus-x.y.z.dmg`** from [**Releases**](../../releases/latest), open it, and drag **Argus** onto **Applications**.
-2. Open Argus from Applications. Because Argus is a free open-source app that isn't notarized by Apple ($99/year developer program), macOS will say *"Apple could not verify 'Argus' is free of malware"*. Click **Done** (**not** Move to Trash), then:
-   - Open **System Settings → Privacy & Security**, scroll down to *"Argus" was blocked…*, and click **Open Anyway** → enter your password → **Open Anyway**.
+1. Download **`ArgusLid-x.y.z.dmg`** from [**Releases**](../../releases/latest), open it, and drag **ArgusLid** onto **Applications**.
+2. Open ArgusLid from Applications. Because ArgusLid is a free open-source app that isn't notarized by Apple ($99/year developer program), macOS will say *"Apple could not verify 'ArgusLid' is free of malware"*. Click **Done** (**not** Move to Trash), then:
+   - Open **System Settings → Privacy & Security**, scroll down to *"ArgusLid" was blocked…*, and click **Open Anyway** → enter your password → **Open Anyway**.
    - Or run this once in Terminal:
      ```bash
-     xattr -dr com.apple.quarantine /Applications/Argus.app
+     xattr -dr com.apple.quarantine /Applications/ArgusLid.app
      ```
    You only need to do this once. The full source is in this repo, and you can build it yourself (see below).
 3. Click the 👁 icon in the menu bar. Open **Settings → Passwordless toggle** and enter your password once.
@@ -66,10 +66,10 @@ If you're searching for an **Amphetamine alternative**, a **closed-lid / clamshe
 Only Xcode Command Line Tools are needed:
 
 ```bash
-git clone https://github.com/GZhengHao/Argus.git
-cd Argus
-./build.sh            # → build/Argus.app
-./build.sh release    # → also dist/Argus-<version>.zip
+git clone https://github.com/GZhengHao/argus-lid.git
+cd argus-lid
+./build.sh            # → build/ArgusLid.app
+./build.sh release    # → also dist/ArgusLid-<version>.zip
 ```
 
 ## How it works
@@ -82,12 +82,12 @@ cd Argus
 | Battery / charger | `IOPowerSources` |
 | No password prompts | Optional sudoers rule in `/etc/sudoers.d/argus` that allows **only** `pmset -a disablesleep 0` and `pmset -a disablesleep 1`, validated with `visudo` before install. You can remove it from Settings at any time. |
 
-Automatic actions (timer end, low battery, unplugged) **never** show a password dialog. If nobody is there to type a password, a blocking dialog would hang. Without the passwordless rule, Argus tells you it couldn't switch itself off instead.
+Automatic actions (timer end, low battery, unplugged) **never** show a password dialog. If nobody is there to type a password, a blocking dialog would hang. Without the passwordless rule, ArgusLid tells you it couldn't switch itself off instead.
 
 ## ⚠️ Be careful
 
 - **Don't put a running, lid-closed MacBook in a bag.** With no airflow it can get hot. Use the battery guard and a timer.
-- `disablesleep` is a system-wide setting that persists across reboots. Argus turns it off when you quit, but if the app is force-killed, turn it off with:
+- `disablesleep` is a system-wide setting that persists across reboots. ArgusLid turns it off when you quit, but if the app is force-killed, turn it off with:
   ```bash
   sudo pmset -a disablesleep 0
   ```
@@ -106,7 +106,7 @@ MIT
 
 ## 中文
 
-**Argus** 是一个 macOS 菜单栏小工具：**合上 MacBook 盖子后，屏幕熄灭，系统继续运行**。用电池也行，不需要外接显示器、键盘或鼠标。
+**ArgusLid** 是一个 macOS 菜单栏小工具：**合上 MacBook 盖子后，屏幕熄灭，系统继续运行**。用电池也行，不需要外接显示器、键盘或鼠标。
 
 下载、编译、渲染、备份、SSH、本地大模型、AI Agent、服务器……合盖后照常运行，屏幕全黑，不费电也不发热。
 
@@ -117,7 +117,7 @@ MIT
 1. **基于电源断言的工具**（caffeinate、KeepingYouAwake、Caffeine、Lungo、Theine 等）只能阻止"闲置睡眠"。**一合盖系统照样会睡**，除非同时接着电源、外接显示器和键盘鼠标，进入苹果官方的"合盖模式"。
 2. **能让合盖不休眠的工具**，合盖后**内屏背光往往还亮着**，既费电又发热，还可能烧屏。
 
-Argus 就是为了解决这个问题而做的：**合盖瞬间主动熄灭所有屏幕**。盖子合着期间屏幕如果被唤醒，它会再次熄灭。
+ArgusLid 就是为了解决这个问题而做的：**合盖瞬间主动熄灭所有屏幕**。盖子合着期间屏幕如果被唤醒，它会再次熄灭。
 
 ### 功能
 
@@ -132,12 +132,12 @@ Argus 就是为了解决这个问题而做的：**合盖瞬间主动熄灭所有
 
 ### 安装
 
-1. 从 [**Releases**](../../releases/latest) 下载 **`Argus-x.y.z.dmg`**，双击打开，把 **Argus** 拖到 **应用程序**
-2. 从「应用程序」里打开 Argus。因为 Argus 是免费开源软件，没有付费参加苹果的开发者计划（99 美元/年）做公证，系统会提示 **「Apple 无法验证"Argus"是否包含可能危害 Mac 安全或泄漏隐私的恶意软件」**。这时点 **完成**，**不要**点「移到废纸篓」，然后二选一：
-   - 打开 **系统设置 → 隐私与安全性**，往下滚到「已阻止"Argus"…」，点 **仍要打开**，输入密码，再点 **仍要打开**
+1. 从 [**Releases**](../../releases/latest) 下载 **`ArgusLid-x.y.z.dmg`**，双击打开，把 **ArgusLid** 拖到 **应用程序**
+2. 从「应用程序」里打开 ArgusLid。因为 ArgusLid 是免费开源软件，没有付费参加苹果的开发者计划（99 美元/年）做公证，系统会提示 **「Apple 无法验证"ArgusLid"是否包含可能危害 Mac 安全或泄漏隐私的恶意软件」**。这时点 **完成**，**不要**点「移到废纸篓」，然后二选一：
+   - 打开 **系统设置 → 隐私与安全性**，往下滚到「已阻止"ArgusLid"…」，点 **仍要打开**，输入密码，再点 **仍要打开**
    - 或者在终端运行一次：
      ```bash
-     xattr -dr com.apple.quarantine /Applications/Argus.app
+     xattr -dr com.apple.quarantine /Applications/ArgusLid.app
      ```
    这一步只需要做一次。全部源码都在这个仓库里，你也可以自己编译。
 3. 点击菜单栏的 👁 图标，进入「设置 → 免密切换」，输一次密码
@@ -149,7 +149,7 @@ Argus 就是为了解决这个问题而做的：**合盖瞬间主动熄灭所有
 
 ### 名字由来
 
-阿耳戈斯（Argus Panoptes）是希腊神话中的百眼巨人。他睡觉时只合上一部分眼睛，其余的眼睛始终醒着守望。合上盖子，Mac 依然醒着。
+阿耳戈斯（Argus Panoptes）是希腊神话中的百眼巨人。他睡觉时只合上一部分眼睛，其余的眼睛始终醒着守望。**ArgusLid** = Argus + Lid（盖子，也是「眼睑」）：合上盖子，Mac 依然醒着。
 
 ---
 

@@ -1,10 +1,10 @@
-// Argus — 合上盖子，Mac 继续工作
+// ArgusLid — 合上盖子，Mac 继续工作
 // 名字取自希腊神话中的百眼巨人阿耳戈斯（Argus Panoptes）：
 // 他睡觉时只合上一部分眼睛，其余的眼睛始终醒着守望。
 import SwiftUI
 
 @main
-struct ArgusApp: App {
+struct ArgusLidApp: App {
     @StateObject private var c = Controller()
 
     var body: some Scene {

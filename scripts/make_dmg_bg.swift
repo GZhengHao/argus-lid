@@ -46,7 +46,7 @@ func text(_ s: String, y: CGFloat, size: CGFloat, color: NSColor, weight: NSFont
     NSAttributedString(string: s, attributes: a).draw(in: CGRect(x: 0, y: y, width: W, height: size + 8))
 }
 text("拖到「应用程序」完成安装", y: 74, size: 17, color: .white.withAlphaComponent(0.9), weight: .semibold)
-text("Drag Argus to Applications to install", y: 50, size: 12, color: .white.withAlphaComponent(0.5), weight: .regular)
+text("Drag ArgusLid to Applications to install", y: 50, size: 12, color: .white.withAlphaComponent(0.5), weight: .regular)
 
 NSGraphicsContext.restoreGraphicsState()
 try! rep.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: out))

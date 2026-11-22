@@ -5,9 +5,9 @@ import IOKit.ps
 
 enum System {
     static let pmset = "/usr/bin/pmset"
-    static let sudoersPath = "/etc/sudoers.d/argus"
-    /// 旧版本（LidAwake）安装的规则，兼容识别并一并移除
-    static let legacySudoersPath = "/etc/sudoers.d/lidawake"
+    static let sudoersPath = "/etc/sudoers.d/arguslid"
+    /// 旧版本（LidAwake / Argus）安装的规则，兼容识别并一并移除
+    static let legacySudoersPaths = ["/etc/sudoers.d/argus", "/etc/sudoers.d/lidawake"]
 
     @discardableResult
     static func run(_ path: String, _ args: [String]) -> (status: Int32, output: String) {
@@ -44,7 +44,7 @@ enum System {
     }
 
     static var hasPasswordlessRule: Bool {
-        FileManager.default.fileExists(atPath: sudoersPath) || FileManager.default.fileExists(atPath: legacySudoersPath)
+        ([sudoersPath] + legacySudoersPaths).contains { FileManager.default.fileExists(atPath: $0) }
     }
 
     /// 设置 SleepDisabled。interactive=false 时绝不弹密码框（用于定时/低电量等无人值守场景）
@@ -105,11 +105,11 @@ enum System {
         guard user.range(of: "^[A-Za-z0-9._-]+$", options: .regularExpression) != nil else { return false }
         let rule = "\(user) ALL=(root) NOPASSWD: \(pmset) -a disablesleep 0, \(pmset) -a disablesleep 1"
         // mktemp 生成随机临时文件，避免以 root 身份写入可预测路径（符号链接攻击）
-        let cmd = "T=$(/usr/bin/mktemp /tmp/argus.XXXXXX) && printf '%s\\n' '\(rule)' > \"$T\" && "
+        let cmd = "T=$(/usr/bin/mktemp /tmp/arguslid.XXXXXX) && printf '%s\\n' '\(rule)' > \"$T\" && "
                 + "/usr/sbin/visudo -cf \"$T\" && /usr/sbin/chown root:wheel \"$T\" && /bin/chmod 0440 \"$T\" && "
-                + "/bin/mv \"$T\" \(sudoersPath) && /bin/rm -f \(legacySudoersPath) || { /bin/rm -f \"$T\"; exit 1; }"
+                + "/bin/mv \"$T\" \(sudoersPath) && /bin/rm -f \(legacySudoersPaths.joined(separator: " ")) || { /bin/rm -f \"$T\"; exit 1; }"
         return runAsAdmin(cmd)
     }
 
-    static func removeRule() -> Bool { runAsAdmin("/bin/rm -f \(sudoersPath) \(legacySudoersPath)") }
+    static func removeRule() -> Bool { runAsAdmin("/bin/rm -f \(sudoersPath) \(legacySudoersPaths.joined(separator: " "))") }
 }

@@ -174,7 +174,7 @@ final class Controller: ObservableObject {
         if keepExternalOn, System.hasExternalDisplay { return }
         let justClosed = !lastLidClosed
         if justClosed || (System.anyDisplayAwake && Date().timeIntervalSince(lastScreenOff) >= 10) {
-            NSLog("Argus: lid closed → display sleep (\(justClosed ? "lid just closed" : "display woke"))")
+            NSLog("ArgusLid: lid closed → display sleep (\(justClosed ? "lid just closed" : "display woke"))")
             System.displaySleepNow()
             lastScreenOff = Date()
         }

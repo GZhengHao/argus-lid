@@ -1,9 +1,9 @@
 #!/bin/zsh
 # 打包带「拖到应用程序」布局的 DMG
-# 用法：scripts/make_dmg.sh build/Argus.app dist/Argus-1.0.0.dmg
+# 用法：scripts/make_dmg.sh build/ArgusLid.app dist/ArgusLid-1.0.0.dmg
 set -e
 APP="$1"; OUT="$2"
-VOL=Argus
+VOL=ArgusLid
 WORK=build/dmg
 BG2X=build/obj/dmg_bg.png
 
@@ -12,7 +12,7 @@ rm -rf "$WORK" "$OUT"; mkdir -p "$WORK/stage/.background" "$(dirname "$OUT")"
 sips -z 400 660 $BG2X --out $WORK/bg1x.png >/dev/null
 tiffutil -cathidpicheck $WORK/bg1x.png $BG2X -out "$WORK/stage/.background/bg.tiff" 2>/dev/null
 
-ditto "$APP" "$WORK/stage/Argus.app"
+ditto "$APP" "$WORK/stage/ArgusLid.app"
 ln -s /Applications "$WORK/stage/Applications"
 
 # 若同名卷已挂载，先卸载
@@ -36,7 +36,7 @@ tell application "Finder"
     set icon size of opts to 128
     set text size of opts to 13
     set background picture of opts to file ".background:bg.tiff"
-    set position of item "Argus.app" of container window to {165, 190}
+    set position of item "ArgusLid.app" of container window to {165, 190}
     set position of item "Applications" of container window to {495, 190}
     update without registering applications
     delay 1
