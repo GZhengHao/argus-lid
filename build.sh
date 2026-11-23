@@ -5,7 +5,7 @@
 set -e
 cd "$(dirname "$0")"
 
-VERSION=1.7.0
+VERSION=1.7.1
 BUNDLE_ID=io.github.gzhenghao.ArgusLid
 APP=build/ArgusLid.app
 

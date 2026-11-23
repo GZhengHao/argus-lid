@@ -61,6 +61,9 @@ final class Controller: ObservableObject {
         endDate = d.object(forKey: "endDate") as? Date
         startDate = d.object(forKey: "startDate") as? Date
 
+        keepingAwake = System.isSleepDisabled
+        hasRule = System.hasPasswordlessRule
+        battery = System.battery
         refresh()
         // 从旧版本升级、或在终端里开过：系统已在保持运行，视为已开启
         if keepingAwake && !enabled { enabled = true }
@@ -102,49 +105,78 @@ final class Controller: ObservableObject {
         enabled && !hasRule && wantsKeepAwake && (durationMinutes > 0 || lowBatteryOff || offOnUnplug)
     }
 
+    // MARK: 系统调用（放到后台队列，避免点击时卡住动画）
+
+    private let sysQueue = DispatchQueue(label: "arguslid.system", qos: .userInitiated)
+    private var pendingOps = 0     // 进行中的切换；期间不做「外部被改」的同步，避免误判
+
+    /// 设置 SleepDisabled。有免密：后台执行，不阻塞界面；没有免密且允许交互：主线程弹授权框
+    private func applySleep(_ disable: Bool, interactive: Bool, done: @escaping (Bool) -> Void) {
+        pendingOps += 1
+        let finish: (Bool) -> Void = { [weak self] ok in
+            guard let self else { return }
+            self.pendingOps -= 1
+            if ok { self.keepingAwake = disable }
+            done(ok)
+        }
+        if hasRule || !interactive {
+            sysQueue.async {
+                let ok = System.setSleepDisabled(disable, interactive: false)
+                DispatchQueue.main.async { finish(ok) }
+            }
+        } else {
+            // 先让这次点击的动画跑起来，再弹授权框
+            DispatchQueue.main.async { finish(System.setSleepDisabled(disable, interactive: true)) }
+        }
+    }
+
     // MARK: 总开关
 
     func setEnabled(_ on: Bool) {
         notice = nil
         if on {
-            if wantsKeepAwake {
-                if batteryAllowsKeepAwake() {
-                    guard System.setSleepDisabled(true, interactive: true) else { return }
-                    startTimer()
-                } else {
-                    // 电量太低：照常接管合盖（熄屏/锁屏），但不保持运行
-                    durationMinutes = Self.none
-                }
-            }
-            enabled = true
+            enabled = true                       // 先更新界面
             lastLidClosed = System.isLidClosed
+            guard wantsKeepAwake else { return }
+            guard batteryAllowsKeepAwake() else { durationMinutes = Self.none; return }
+            applySleep(true, interactive: true) { [weak self] ok in
+                guard let self else { return }
+                if ok { self.startTimer() } else { self.enabled = false }   // 取消授权：退回关闭
+            }
         } else {
-            if keepingAwake { guard System.setSleepDisabled(false, interactive: true) else { return } }
-            clearTimer()
             enabled = false
+            clearTimer()
+            guard keepingAwake else { return }
+            applySleep(false, interactive: true) { [weak self] ok in
+                if !ok { self?.enabled = true }
+            }
         }
-        refresh()
     }
 
     // MARK: 时长
 
-    /// 选择时长。已开启时立即生效（从现在开始重新计时）；未开启时只记下来
+    /// 选择时长。界面立即切换；需要改系统设置时在后台完成，失败则退回原来的选择
     func selectDuration(_ minutes: Int) {
         notice = nil
-        guard enabled else { durationMinutes = minutes; return }
+        let previous = durationMinutes
+        durationMinutes = minutes
+        guard enabled else { return }
+
         if minutes == Self.none {
-            if keepingAwake { guard System.setSleepDisabled(false, interactive: true) else { return } }
-            durationMinutes = minutes
             clearTimer()
-        } else {
-            if !keepingAwake {
-                guard batteryAllowsKeepAwake() else { return }
-                guard System.setSleepDisabled(true, interactive: true) else { return }
+            guard keepingAwake else { return }
+            applySleep(false, interactive: true) { [weak self] ok in
+                if !ok { self?.durationMinutes = previous }
             }
-            durationMinutes = minutes
-            startTimer()
+        } else if keepingAwake {
+            startTimer()                         // 已在保持运行：只换时长，不碰系统
+        } else {
+            guard batteryAllowsKeepAwake() else { durationMinutes = previous; return }
+            applySleep(true, interactive: true) { [weak self] ok in
+                guard let self else { return }
+                if ok { self.startTimer() } else { self.durationMinutes = previous }
+            }
         }
-        refresh()
     }
 
     func adjustCustom(by delta: Int) {
@@ -177,6 +209,7 @@ final class Controller: ObservableObject {
     private func setEnd(_ end: Date, keepStart: Bool) {
         if !keepStart || startDate == nil { startDate = Date() }
         endDate = end
+        now = Date()
         d.set(startDate, forKey: "startDate")
         d.set(endDate, forKey: "endDate")
     }
@@ -187,46 +220,63 @@ final class Controller: ObservableObject {
     }
 
     /// 无人值守地结束「保持运行」：只用免密，绝不弹密码框。总开关保持开启，时长回到「睡眠」
+    private var stopping = false
     private func stopKeepAwake(_ reason: String) {
-        if System.setSleepDisabled(false, interactive: false) {
-            clearTimer()
-            durationMinutes = Self.none
-            notice = "\(reason)，已恢复合盖睡眠"
+        guard !stopping else { return }
+        stopping = true
+        applySleep(false, interactive: false) { [weak self] ok in
+            guard let self else { return }
+            self.stopping = false
+            guard ok else {
+                self.notice = "\(reason)，但未设置免密，无法自动恢复睡眠"
+                return
+            }
+            self.clearTimer()
+            self.durationMinutes = Self.none
+            self.notice = "\(reason)，已恢复合盖睡眠"
             // 盖子已经合着：恢复睡眠设置不会自己触发睡眠，需要主动睡下去。
             // 接着外接屏时（系统原生的合盖模式）不强制睡眠，避免打断外接屏使用。
             if System.isLidClosed, !System.hasExternalDisplay {
                 NSLog("ArgusLid: keep-awake ended with lid closed → sleep now")
-                if lockOnLid { lock(reason: "before sleep") }
+                if self.lockOnLid { self.lock(reason: "before sleep") }
                 System.sleepNow()
             }
-        } else {
-            notice = "\(reason)，但未设置免密，无法自动恢复睡眠"
         }
-        refresh()
     }
 
     // MARK: 轮询
 
     private func onTick() {
         tick += 1
-        now = Date()
+        // 只有显示倒计时时才每秒刷新界面，否则不触发重绘
+        if endDate != nil { now = Date() }
         checkTimer()
         if tick % 2 == 0 { checkLid() }
         if tick % 5 == 0 { refresh() }
         if tick % 10 == 0 { checkBattery() }
     }
 
+    /// 读取系统状态（pmset、电池、登录项）在后台完成，结果回到主线程更新
     func refresh() {
-        let awake = System.isSleepDisabled
-        if awake != keepingAwake { keepingAwake = awake }
-        // 在外部（终端）被关掉了：同步成「睡眠」
-        if enabled, !awake, wantsKeepAwake, tick > 0 {
-            durationMinutes = Self.none
-            clearTimer()
+        sysQueue.async { [weak self] in
+            let awake = System.isSleepDisabled
+            let rule = System.hasPasswordlessRule
+            let bat = System.battery
+            let login = SMAppService.mainApp.status == .enabled
+            DispatchQueue.main.async {
+                guard let self else { return }
+                if self.hasRule != rule { self.hasRule = rule }
+                if self.battery != bat { self.battery = bat }
+                if self.launchAtLogin != login { self.launchAtLogin = login }
+                guard self.pendingOps == 0 else { return }   // 正在切换：以切换结果为准
+                if awake != self.keepingAwake { self.keepingAwake = awake }
+                // 在外部（终端）被关掉了：同步成「睡眠」
+                if self.enabled, !awake, self.wantsKeepAwake, self.tick > 0 {
+                    self.durationMinutes = Self.none
+                    self.clearTimer()
+                }
+            }
         }
-        hasRule = System.hasPasswordlessRule
-        battery = System.battery
-        launchAtLogin = SMAppService.mainApp.status == .enabled
     }
 
     private func checkTimer() {
@@ -274,11 +324,11 @@ final class Controller: ObservableObject {
     func refreshSystemLock() { systemLockDescription = System.screenLockDescription }
 
     func setupRule() {
-        if System.installRule() { notice = "免密已设置，以后切换无需密码" }
+        if System.installRule() { hasRule = true; notice = "免密已设置，以后切换无需密码" }
         refresh()
     }
 
-    func removeRule() { _ = System.removeRule(); refresh() }
+    func removeRule() { if System.removeRule() { hasRule = false }; refresh() }
 
     func setLaunchAtLogin(_ on: Bool) {
         do {

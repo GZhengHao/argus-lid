@@ -143,7 +143,7 @@ struct DurationPicker: View {
                 }
                 .buttonStyle(.glass)
             }
-            Text(hint).font(.caption2).foregroundStyle(.tertiary)
+            hint.font(.caption2).foregroundStyle(.tertiary)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .opacity(c.enabled ? 1 : 0.55)
@@ -160,12 +160,16 @@ struct DurationPicker: View {
         }
     }
 
-    var hint: String {
-        if !c.enabled { return "打开上方开关后生效" }
+    /// 说明文字：图标用单色 SF Symbol，随文字颜色走，不用彩色 emoji
+    var hint: Text {
+        if !c.enabled { return Text("打开上方开关后生效") }
         switch c.durationMinutes {
-        case Controller.none: return "🌙 睡眠：合盖后熄屏/锁屏，系统照常睡眠"
-        case 0: return "∞ 一直运行：合盖后熄屏/锁屏，程序不停"
-        default: return "合盖后继续运行 \(durationLabel(c.durationMinutes))，到点自动睡眠。点选会从现在重新计时"
+        case Controller.none:
+            return Text("\(Image(systemName: "moon.zzz.fill")) 睡眠：合盖后熄屏/锁屏，系统照常睡眠")
+        case 0:
+            return Text("\(Image(systemName: "infinity")) 一直运行：合盖后熄屏/锁屏，程序不停")
+        default:
+            return Text("合盖后继续运行 \(durationLabel(c.durationMinutes))，到点自动睡眠。点选会从现在重新计时")
         }
     }
 
@@ -461,13 +465,17 @@ struct Chip: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .glassEffect(selected ? .regular.tint(accent.opacity(0.18)).interactive() : .regular.interactive(),
-                     in: .rect(cornerRadius: 10))
+        // 玻璃材质固定不变（切换玻璃变体很耗性能，会导致卡顿）；选中态用轻量的叠加层表现
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(accent.opacity(selected ? 0.16 : 0))
+        )
+        .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 10))
         .overlay(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(selected ? accent.opacity(0.7) : .clear, lineWidth: 1)
+                .strokeBorder(accent.opacity(selected ? 0.7 : 0), lineWidth: 1)
         )
-        .animation(.snappy(duration: 0.15), value: selected)
+        .animation(.easeOut(duration: 0.12), value: selected)
     }
 }
 
