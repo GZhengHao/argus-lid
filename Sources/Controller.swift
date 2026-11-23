@@ -22,6 +22,8 @@ final class Controller: ObservableObject {
 
     // 设置
     @Published var keepExternalOn: Bool { didSet { d.set(keepExternalOn, forKey: "keepExternalOn") } }
+    @Published var lockOnLid: Bool { didSet { d.set(lockOnLid, forKey: "lockOnLid") } }
+    @Published private(set) var systemLockDescription = ""
     @Published var lowBatteryOff: Bool { didSet { d.set(lowBatteryOff, forKey: "lowBatteryOff") } }
     @Published var lowBatteryThreshold: Int { didSet { d.set(lowBatteryThreshold, forKey: "threshold") } }
     @Published var offOnUnplug: Bool { didSet { d.set(offOnUnplug, forKey: "offOnUnplug") } }
@@ -34,11 +36,12 @@ final class Controller: ObservableObject {
     private var lastScreenOff = Date.distantPast
 
     init() {
-        d.register(defaults: ["duration": 0, "customMinutes": 90, "keepExternalOn": false,
+        d.register(defaults: ["duration": 0, "customMinutes": 90, "keepExternalOn": false, "lockOnLid": true,
                               "lowBatteryOff": true, "threshold": 20, "offOnUnplug": false])
         durationMinutes = d.integer(forKey: "duration")
         customMinutes = d.integer(forKey: "customMinutes")
         keepExternalOn = d.bool(forKey: "keepExternalOn")
+        lockOnLid = d.bool(forKey: "lockOnLid")
         lowBatteryOff = d.bool(forKey: "lowBatteryOff")
         lowBatteryThreshold = d.integer(forKey: "threshold")
         offOnUnplug = d.bool(forKey: "offOnUnplug")
@@ -173,6 +176,7 @@ final class Controller: ObservableObject {
         guard isOn, closed else { return }
         if keepExternalOn, System.hasExternalDisplay { return }
         let justClosed = !lastLidClosed
+        if justClosed, lockOnLid { System.lockScreen() }
         if justClosed || (System.anyDisplayAwake && Date().timeIntervalSince(lastScreenOff) >= 10) {
             NSLog("ArgusLid: lid closed → display sleep (\(justClosed ? "lid just closed" : "display woke"))")
             System.displaySleepNow()
@@ -190,6 +194,8 @@ final class Controller: ObservableObject {
     }
 
     // MARK: 设置
+
+    func refreshSystemLock() { systemLockDescription = System.screenLockDescription }
 
     func setupRule() {
         if System.installRule() { notice = "免密已设置，以后切换无需密码" }

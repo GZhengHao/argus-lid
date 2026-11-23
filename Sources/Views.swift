@@ -62,13 +62,19 @@ struct HeaderCard: View {
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text("ArgusLid").font(.headline)
-                    HStack(spacing: 5) {
-                        Circle().fill(c.isOn ? accent : Color.secondary.opacity(0.5)).frame(width: 6, height: 6)
-                        Text(subtitle).font(.system(.caption, design: .monospaced)).foregroundStyle(.secondary)
-                    }
+                    Text(c.isOn ? "ON" : "OFF")
+                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                        .foregroundStyle(c.isOn ? accent : .secondary)
                 }
                 Spacer()
                 GeekSwitch(isOn: Binding(get: { c.isOn }, set: { c.setOn($0) }), size: .large)
+            }
+
+            // 状态说明单独占一行，避免被开关挤到截断
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Circle().fill(c.isOn ? accent : Color.secondary.opacity(0.5)).frame(width: 6, height: 6)
+                Text(subtitle).font(.caption).foregroundStyle(.secondary)
+                    .lineLimit(2).fixedSize(horizontal: false, vertical: true)
             }
 
             if let r = c.remaining {
@@ -97,9 +103,10 @@ struct HeaderCard: View {
     }
 
     var subtitle: String {
-        if !c.isOn { return "OFF · 合盖正常睡眠" }
-        if let e = c.endDate { return "ON · \(e.formatted(date: .omitted, time: .shortened)) 自动关闭" }
-        return "ON · 合盖熄屏，系统运行"
+        if !c.isOn { return "已关闭：合盖后按系统默认行为（通常会睡眠）" }
+        let lid = c.lockOnLid ? "合盖熄屏并锁屏，程序继续运行" : "合盖熄屏，程序继续运行"
+        if let e = c.endDate { return "\(lid) · \(e.formatted(date: .omitted, time: .shortened)) 自动关闭" }
+        return lid
     }
 }
 
@@ -147,7 +154,7 @@ struct StatusRows: View {
             InfoRow(icon: "shield.lefthalf.filled", text: "电池保护",
                     detail: c.lowBatteryOff ? "≤\(c.lowBatteryThreshold)% 自动关闭" : "未开启", warn: false)
             InfoRow(icon: "laptopcomputer", text: "合盖熄屏",
-                    detail: c.keepExternalOn ? "保留外接屏" : "全部熄灭", warn: false)
+                    detail: (c.keepExternalOn ? "保留外接屏" : "全部熄灭") + (c.lockOnLid ? " · 锁屏" : ""), warn: false)
         }
         .padding(12)
         .glassEffect(.regular, in: .rect(cornerRadius: 14))
@@ -211,10 +218,19 @@ struct SettingsView: View {
                     Color.clear.frame(width: 32, height: 1)
                 }
 
-                Group_("合盖") {
+                Group_("合盖时（仅在 ArgusLid 开启时生效）") {
+                    SwitchRow(title: "合盖立即锁屏",
+                              caption: "锁屏不会影响程序运行。" + (c.lockOnLid ? "合盖瞬间锁定，最安全"
+                                       : "关闭后按系统设置锁屏：\(c.systemLockDescription)"),
+                              isOn: $c.lockOnLid)
+                    Divider().opacity(0.5)
                     SwitchRow(title: "接外接显示器时保持亮屏",
-                              caption: "默认合盖熄灭所有屏幕；开启后，接着外接屏时只让系统保持运行，不熄屏",
+                              caption: c.keepExternalOn ? "接着外接屏时不熄屏、不锁屏，可以合盖当台式机用"
+                                                        : "合盖后熄灭所有屏幕，包括外接显示器",
                               isOn: $c.keepExternalOn)
+                    Text("ArgusLid 关闭时，合盖完全按系统默认行为：没接外接屏会睡眠；接着外接屏并插电时，外接屏保持亮、系统不睡。")
+                        .font(.caption2).foregroundStyle(.tertiary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 Group_("电池保护") {
@@ -281,6 +297,7 @@ struct SettingsView: View {
             }
             .padding(14)
         }
+        .onAppear { c.refreshSystemLock() }
     }
 }
 

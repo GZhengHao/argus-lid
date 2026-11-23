@@ -70,6 +70,26 @@ enum System {
     /// 立刻熄灭所有屏幕（无需管理员权限）
     static func displaySleepNow() { run(pmset, ["displaysleepnow"]) }
 
+    /// 立即锁屏（与 ⌃⌘Q 相同）。使用 login.framework 的 SACLockScreenImmediate，不需要任何权限
+    static func lockScreen() {
+        typealias Fn = @convention(c) () -> Int32
+        guard let h = dlopen("/System/Library/PrivateFrameworks/login.framework/Versions/Current/login", RTLD_LAZY),
+              let sym = dlsym(h, "SACLockScreenImmediate") else { return }
+        _ = unsafeBitCast(sym, to: Fn.self)()
+    }
+
+    /// 系统「熄屏后多久需要密码」，如 "立即"、"5 分钟后"、"不锁定"
+    static var screenLockDescription: String {
+        let out = run("/usr/sbin/sysadminctl", ["-screenLock", "status"]).output
+        if out.contains("immediate") { return "熄屏后立即锁屏" }
+        if out.contains("is off") { return "熄屏后不锁屏" }
+        if let r = out.range(of: #"delay is (\d+) seconds"#, options: .regularExpression),
+           let n = Int(out[r].filter(\.isNumber)) {
+            return n >= 60 ? "熄屏 \(n / 60) 分钟后锁屏" : "熄屏 \(n) 秒后锁屏"
+        }
+        return "取决于「系统设置 → 锁定屏幕」"
+    }
+
     private static var onlineDisplays: [CGDirectDisplayID] {
         var ids = [CGDirectDisplayID](repeating: 0, count: 16)
         var n: UInt32 = 0
