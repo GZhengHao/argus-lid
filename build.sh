@@ -5,7 +5,7 @@
 set -e
 cd "$(dirname "$0")"
 
-VERSION=1.1.0
+VERSION=1.2.0
 BUNDLE_ID=io.github.gzhenghao.ArgusLid
 APP=build/ArgusLid.app
 
@@ -54,5 +54,8 @@ if [[ "$1" == "release" ]]; then
   mkdir -p dist
   ditto -c -k --keepParent "$APP" "dist/ArgusLid-$VERSION.zip"
   scripts/make_dmg.sh "$APP" "dist/ArgusLid-$VERSION.dmg"
+  # 固定文件名的 zip + 校验和：供 install.sh 和 App 内自动更新使用
+  cp "dist/ArgusLid-$VERSION.zip" dist/ArgusLid.zip
+  (cd dist && shasum -a 256 ArgusLid.zip > ArgusLid.zip.sha256)
   shasum -a 256 dist/ArgusLid-$VERSION.*
 fi

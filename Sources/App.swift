@@ -6,10 +6,11 @@ import SwiftUI
 @main
 struct ArgusLidApp: App {
     @StateObject private var c = Controller()
+    @StateObject private var updater = Updater()
 
     var body: some Scene {
         MenuBarExtra {
-            RootView().environmentObject(c)
+            RootView().environmentObject(c).environmentObject(updater)
         } label: {
             if c.isOn {
                 Image(systemName: "eye.fill")

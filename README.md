@@ -45,21 +45,31 @@ ArgusLid was built to fix exactly that:
 | Auto-off when the charger is unplugged (optional) | ✅ |
 | One-click toggle, no password after one-time setup | ✅ |
 | Restores normal sleep when you quit | ✅ |
+| One-click in-app updates | ✅ |
 | Native SwiftUI + Liquid Glass, ~300 KB, no dependencies, open source | ✅ |
 
 If you're searching for an **Amphetamine alternative**, a **closed-lid / clamshell mode without an external monitor**, or a way to **prevent MacBook sleep when the lid is closed while turning the display off**, this is it.
 
 ## Install
 
+### Option 1: one command (recommended, no security warning)
+
+Paste this into Terminal:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/GZhengHao/argus-lid/main/install.sh | bash
+```
+
+It downloads the latest release, verifies its SHA-256, puts `ArgusLid.app` in `/Applications` and launches it. Files downloaded with `curl` aren't tagged as "from the internet", so macOS opens the app straight away, with **no "Apple could not verify" dialog**. The [script](install.sh) is short; read it first if you like. Run the same command again any time to upgrade.
+
+### Option 2: DMG
+
 1. Download **`ArgusLid-x.y.z.dmg`** from [**Releases**](../../releases/latest), open it, and drag **ArgusLid** onto **Applications**.
-2. Open ArgusLid from Applications. Because ArgusLid is a free open-source app that isn't notarized by Apple ($99/year developer program), macOS will say *"Apple could not verify 'ArgusLid' is free of malware"*. Click **Done** (**not** Move to Trash), then:
-   - Open **System Settings → Privacy & Security**, scroll down to *"ArgusLid" was blocked…*, and click **Open Anyway** → enter your password → **Open Anyway**.
-   - Or run this once in Terminal:
-     ```bash
-     xattr -dr com.apple.quarantine /Applications/ArgusLid.app
-     ```
-   You only need to do this once. The full source is in this repo, and you can build it yourself (see below).
-3. Click the 👁 icon in the menu bar. Open **Settings → Passwordless toggle** and enter your password once.
+2. ArgusLid is a free open-source app that isn't notarized by Apple ($99/year developer program), so on first launch macOS says *"Apple could not verify 'ArgusLid' is free of malware"*. Click **Done** (**not** Move to Trash), then open **System Settings → Privacy & Security**, scroll down, and click **Open Anyway**.
+
+### After installing
+
+Click the 👁 icon in the menu bar, then **Settings → Passwordless toggle**, and enter your password once. ArgusLid checks GitHub for new versions and **updates itself in one click**, so you won't see the security warning again.
 
 ### Build from source
 
@@ -128,19 +138,29 @@ ArgusLid 就是为了解决这个问题而做的：**合盖瞬间主动熄灭所
 - 开机自动启动
 - 设置一次免密后，切换不用再输密码
 - 退出时自动恢复正常睡眠
+- App 内一键更新
 - 原生 SwiftUI + Liquid Glass 界面，约 300 KB，无任何依赖，开源
 
 ### 安装
 
-1. 从 [**Releases**](../../releases/latest) 下载 **`ArgusLid-x.y.z.dmg`**，双击打开，把 **ArgusLid** 拖到 **应用程序**
-2. 从「应用程序」里打开 ArgusLid。因为 ArgusLid 是免费开源软件，没有付费参加苹果的开发者计划（99 美元/年）做公证，系统会提示 **「Apple 无法验证"ArgusLid"是否包含可能危害 Mac 安全或泄漏隐私的恶意软件」**。这时点 **完成**，**不要**点「移到废纸篓」，然后二选一：
-   - 打开 **系统设置 → 隐私与安全性**，往下滚到「已阻止"ArgusLid"…」，点 **仍要打开**，输入密码，再点 **仍要打开**
-   - 或者在终端运行一次：
-     ```bash
-     xattr -dr com.apple.quarantine /Applications/ArgusLid.app
-     ```
-   这一步只需要做一次。全部源码都在这个仓库里，你也可以自己编译。
-3. 点击菜单栏的 👁 图标，进入「设置 → 免密切换」，输一次密码
+**方法一：一行命令（推荐，不会弹安全提示）**
+
+复制到「终端」运行：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/GZhengHao/argus-lid/main/install.sh | bash
+```
+
+它会下载最新版、校验 SHA-256、放进「应用程序」并自动打开。用 `curl` 下载的文件不会被打上「来自网络」的标记，所以**不会出现「Apple 无法验证」的提示**。[脚本](install.sh)很短，可以先看看。以后重新运行这条命令就能升级。
+
+**方法二：DMG 安装包**
+
+1. 从 [**Releases**](../../releases/latest) 下载 **`ArgusLid-x.y.z.dmg`**，打开后把 **ArgusLid** 拖到 **应用程序**
+2. ArgusLid 是免费开源软件，没有付费参加苹果的开发者计划（99 美元/年）做公证，首次打开会提示 **「Apple 无法验证"ArgusLid"…」**。点 **完成**，**不要**点「移到废纸篓」，然后打开 **系统设置 → 隐私与安全性**，往下滚，点 **仍要打开**
+
+**装好之后**
+
+点击菜单栏的 👁 图标，进入「设置 → 免密切换」，输一次密码。ArgusLid 会自动检查 GitHub 上的新版本，**一键更新**，以后不会再看到安全提示。
 
 ### 注意
 

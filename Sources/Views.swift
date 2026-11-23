@@ -36,6 +36,7 @@ struct MainView: View {
                 HeaderCard()
                 if let n = c.notice { Banner(icon: "info.circle", text: n) { c.notice = nil } }
                 if c.needsRuleWarning { RuleBanner() }
+                UpdateBanner()
                 DurationPicker()
                 StatusRows()
                 Footer(openSettings: openSettings)
@@ -188,7 +189,16 @@ struct Footer: View {
 
 struct SettingsView: View {
     @EnvironmentObject var c: Controller
+    @EnvironmentObject var updater: Updater
     var back: () -> Void
+
+    var updateStatus: String {
+        switch updater.state {
+        case .upToDate: return "· 已是最新"
+        case .failed(let m): return "· \(m)"
+        default: return updater.latestVersion.map { "· 新版本 \($0) 可用" } ?? ""
+        }
+    }
 
     var body: some View {
         GlassEffectContainer(spacing: 10) {
@@ -225,6 +235,19 @@ struct SettingsView: View {
                 Group_("通用") {
                     SwitchRow(title: "开机自动启动", caption: nil,
                               isOn: Binding(get: { c.launchAtLogin }, set: { c.setLaunchAtLogin($0) }))
+                    Divider().opacity(0.5)
+                    SwitchRow(title: "自动检查更新", caption: "有新版本时在面板上提示，一键更新",
+                              isOn: $updater.autoCheck)
+                    HStack {
+                        Text("版本 \(updater.currentVersion)").font(.system(.caption, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                        Text(updateStatus).font(.caption).foregroundStyle(.secondary)
+                        Spacer()
+                        Button(updater.state == .checking ? "检查中…" : "检查更新") {
+                            Task { await updater.check(userInitiated: true) }
+                        }
+                        .buttonStyle(.glass).controlSize(.small).disabled(updater.isBusy)
+                    }
                 }
 
                 Group_("权限") {
@@ -420,5 +443,37 @@ struct RuleBanner: View {
         }
         .padding(10)
         .glassEffect(.regular.tint(.yellow.opacity(0.12)), in: .rect(cornerRadius: 12))
+    }
+}
+
+/// 主面板上的更新提示
+struct UpdateBanner: View {
+    @EnvironmentObject var updater: Updater
+    var body: some View {
+        if let v = updater.latestVersion {
+            HStack(spacing: 8) {
+                Image(systemName: "arrow.down.circle").foregroundStyle(accent)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("新版本 \(v) 可用").font(.caption.weight(.semibold))
+                    Text(detail).font(.caption2).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
+                Button(updater.isBusy ? "更新中…" : "更新") { Task { await updater.installLatest() } }
+                    .buttonStyle(.glassProminent).tint(accent).controlSize(.small)
+                    .disabled(updater.isBusy)
+            }
+            .padding(10)
+            .glassEffect(.regular.tint(accent.opacity(0.10)), in: .rect(cornerRadius: 12))
+        }
+    }
+
+    var detail: String {
+        switch updater.state {
+        case .downloading: return "正在下载…"
+        case .installing: return "正在安装，马上重新打开"
+        case .failed(let m): return m
+        default: return "当前 \(updater.currentVersion)，更新后自动重启，合盖状态不受影响"
+        }
     }
 }
