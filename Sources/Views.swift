@@ -121,7 +121,8 @@ struct DurationPicker: View {
             SectionTitle(title)
             LazyVGrid(columns: cols, spacing: 6) {
                 ForEach(Controller.presets, id: \.self) { m in
-                    Chip(title: shortLabel(m), selected: c.durationMinutes == m) { c.selectDuration(m) }
+                    Chip(title: shortLabel(m), symbol: m == 0 ? "infinity" : nil,
+                         selected: c.durationMinutes == m) { c.selectDuration(m) }
                 }
                 Chip(title: "自定义", selected: c.isCustomDuration) { c.selectDuration(c.customMinutes) }
             }
@@ -152,7 +153,7 @@ struct DurationPicker: View {
     func shortLabel(_ m: Int) -> String {
         switch m {
         case Controller.none: return "无"
-        case 0: return "∞"
+        case 0: return "不限时"
         case ..<60: return "\(m)m"
         default: return "\(m / 60)h"
         }
@@ -413,16 +414,26 @@ struct SwitchRow: View {
 
 struct Chip: View {
     let title: String
+    var symbol: String? = nil      // 用 SF Symbol 代替文字（如 ∞），图形比字符更大更清楚
     let selected: Bool
     var compact = false
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            Text(title)
-                .font(.system(compact ? .caption : .callout, design: .monospaced).weight(selected ? .semibold : .regular))
+            Group {
+                if let symbol {
+                    Image(systemName: symbol)
+                        .font(.system(size: compact ? 13 : 17, weight: selected ? .bold : .semibold))
+                } else {
+                    Text(title)
+                        .font(.system(compact ? .caption : .callout, design: .monospaced).weight(selected ? .semibold : .regular))
+                }
+            }
                 .foregroundStyle(selected ? accent : .primary)
                 .frame(maxWidth: .infinity)
+                .frame(height: compact ? 14 : 20)
+                .accessibilityLabel(title)
                 .padding(.vertical, compact ? 5 : 8)
                 .contentShape(Rectangle())
         }
