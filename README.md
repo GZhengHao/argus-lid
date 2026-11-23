@@ -42,8 +42,8 @@ ArgusLid was built to fix exactly that:
 | Turns screens off again if something wakes them while the lid is closed | ✅ |
 | Locks the screen on lid close (optional; programs keep running either way) | ✅ |
 | One switch to manage the lid; separately choose how long to keep running: None / ∞ / 30m / 1h / 2h / 4h / 8h / custom | ✅ |
-| Battery guard: auto-off below 10/20/30/50% | ✅ |
-| Auto-off when the charger is unplugged (optional) | ✅ |
+| Battery guard: stop keeping awake below 10/20/30/50% (and sleep right away if the lid is closed) | ✅ |
+| Stop keeping awake when the charger is unplugged (optional) | ✅ |
 | One-click toggle, no password after one-time setup | ✅ |
 | Restores normal sleep when you quit | ✅ |
 | One-click in-app updates | ✅ |
@@ -88,7 +88,7 @@ cd argus-lid
 | Step | Mechanism |
 |---|---|
 | Keep the system awake with the lid closed | `pmset -a disablesleep 1` (the only reliable way; power assertions don't survive a lid close) |
-| Detect the lid | `AppleClamshellState` on `IOPMrootDomain` (IOKit), polled every 2 s |
+| Detect the lid | IOKit clamshell-state notifications on `IOPMrootDomain` (instant), with a 2 s poll as fallback |
 | Turn screens off | `pmset displaysleepnow` on lid close; repeated every 10 s if a display wakes while the lid stays shut |
 | Battery / charger | `IOPowerSources` |
 | No password prompts | Optional sudoers rule in `/etc/sudoers.d/argus` that allows **only** `pmset -a disablesleep 0` and `pmset -a disablesleep 1`, validated with `visudo` before install. You can remove it from Settings at any time. |
@@ -135,8 +135,8 @@ ArgusLid 就是为了解决这个问题而做的：**合盖瞬间主动熄灭所
 - 一个总开关管理合盖行为；「合盖后保持运行」单独选：无 / ∞ / 30 分钟 / 1 / 2 / 4 / 8 小时 / 自定义
 - 合盖瞬间熄灭所有屏幕，可选同时锁屏（锁屏不影响程序运行）
 - 定时运行中可以随时延长，时间到后自动回到「无」（只熄屏/锁屏，系统照常睡眠）
-- 电池保护：电量低于 10/20/30/50% 时自动关闭
-- 拔掉电源时自动关闭（可选）
+- 电池保护：电量低于 10/20/30/50% 时停止保持运行，盖子合着会直接睡眠
+- 拔掉电源时停止保持运行（可选）
 - 开机自动启动
 - 设置一次免密后，切换不用再输密码
 - 退出时自动恢复正常睡眠

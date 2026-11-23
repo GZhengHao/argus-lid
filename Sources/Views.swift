@@ -84,7 +84,7 @@ struct HeaderCard: View {
                             .font(.system(size: 30, weight: .medium, design: .monospaced))
                             .foregroundStyle(accent)
                             .contentTransition(.numericText(countsDown: true))
-                        Text("后恢复").font(.caption).foregroundStyle(.secondary)
+                        Text("后恢复睡眠").font(.caption).foregroundStyle(.secondary)
                         Spacer()
                         Button("+30m") { c.extend(by: 30) }
                         Button("+1h") { c.extend(by: 60) }
@@ -148,7 +148,7 @@ struct DurationPicker: View {
     var hint: String {
         if !c.enabled { return "打开上方开关后生效" }
         if c.durationMinutes == Controller.none { return "「无」：合盖只熄屏/锁屏，系统照常睡眠" }
-        return "点选会从现在重新计时；时间到后自动回到「无」"
+        return "点选会从现在重新计时；时间到后回到「无」，盖子合着会直接睡眠"
     }
 
     func shortLabel(_ m: Int) -> String {
@@ -164,20 +164,16 @@ struct DurationPicker: View {
 struct StatusRows: View {
     @EnvironmentObject var c: Controller
 
+    /// 只保留电量这一行（合盖行为已经写在顶部状态行里，不再重复）
     var body: some View {
-        VStack(spacing: 8) {
-            if let b = c.battery {
-                InfoRow(icon: batteryIcon(b), text: "电量",
-                        detail: "\(b.percent)% · " + (b.onBattery ? "电池" : (b.charging ? "充电中" : "电源")),
-                        warn: b.onBattery && c.lowBatteryOff && b.percent <= c.lowBatteryThreshold + 10)
-            }
-            InfoRow(icon: "shield.lefthalf.filled", text: "电池保护",
-                    detail: c.lowBatteryOff ? "≤\(c.lowBatteryThreshold)% 自动关闭" : "未开启", warn: false)
-            InfoRow(icon: "laptopcomputer", text: "合盖熄屏",
-                    detail: (c.keepExternalOn ? "保留外接屏" : "全部熄灭") + (c.lockOnLid ? " · 锁屏" : ""), warn: false)
+        if let b = c.battery {
+            InfoRow(icon: batteryIcon(b), text: "电量 \(b.percent)%",
+                    detail: (b.onBattery ? "电池" : (b.charging ? "充电中" : "电源"))
+                          + (c.lowBatteryOff ? " · ≤\(c.lowBatteryThreshold)% 停止保持运行" : ""),
+                    warn: b.onBattery && c.lowBatteryOff && b.percent <= c.lowBatteryThreshold + 10)
+                .padding(12)
+                .glassEffect(.regular, in: .rect(cornerRadius: 14))
         }
-        .padding(12)
-        .glassEffect(.regular, in: .rect(cornerRadius: 14))
     }
 
     func batteryIcon(_ b: System.Battery) -> String {
@@ -215,7 +211,7 @@ struct Footer: View {
             Button(action: openSettings) { Image(systemName: "gearshape") }
                 .buttonStyle(.glass).help("设置")
             Button { c.quit() } label: { Image(systemName: "power") }
-                .buttonStyle(.glass).help("退出（会恢复正常睡眠）")
+                .buttonStyle(.glass).help("退出 ArgusLid（恢复正常睡眠）")
         }
     }
 }
@@ -262,7 +258,7 @@ struct SettingsView: View {
                 }
 
                 Group_("电池保护") {
-                    SwitchRow(title: "低电量自动关闭", caption: "防止合盖跑任务把电耗光", isOn: $c.lowBatteryOff)
+                    SwitchRow(title: "低电量时停止保持运行", caption: "电量低于阈值时恢复合盖睡眠，防止把电耗光", isOn: $c.lowBatteryOff)
                     if c.lowBatteryOff {
                         HStack(spacing: 6) {
                             ForEach([10, 20, 30, 50], id: \.self) { v in
@@ -273,7 +269,7 @@ struct SettingsView: View {
                         }
                     }
                     Divider().opacity(0.5)
-                    SwitchRow(title: "拔掉电源自动关闭", caption: "只想在插电时合盖工作", isOn: $c.offOnUnplug)
+                    SwitchRow(title: "拔掉电源时停止保持运行", caption: "适合只在插电时合盖工作", isOn: $c.offOnUnplug)
                 }
 
                 Group_("通用") {
@@ -307,7 +303,7 @@ struct SettingsView: View {
                                 }
                             }
                             Text(c.hasRule ? "sudo 仅放行 pmset disablesleep 0/1"
-                                           : "只需输一次密码；定时、低电量才能自动关闭")
+                                           : "输一次密码，以后切换不再弹密码；定时和电池保护也才能自动恢复睡眠")
                                 .font(.caption).foregroundStyle(.secondary)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
@@ -491,7 +487,7 @@ struct RuleBanner: View {
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: "key").foregroundStyle(.yellow)
-            Text("设置免密后，定时和低电量才能自动关闭").font(.caption)
+            Text("设置免密后，定时和电池保护才能自动恢复睡眠").font(.caption)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
             Button("设置") { c.setupRule() }.buttonStyle(.glass).controlSize(.small)

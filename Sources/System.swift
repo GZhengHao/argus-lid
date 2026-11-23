@@ -67,6 +67,9 @@ enum System {
         return (v as? Bool) ?? false
     }
 
+    /// 立刻让系统睡眠（无需管理员权限）
+    static func sleepNow() { run(pmset, ["sleepnow"]) }
+
     /// 立刻熄灭所有屏幕（无需管理员权限）
     static func displaySleepNow() { run(pmset, ["displaysleepnow"]) }
 

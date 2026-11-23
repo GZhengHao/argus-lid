@@ -42,6 +42,8 @@ final class Controller: ObservableObject {
     private var lastLidClosed = false
     private var lastOnBattery: Bool?
     private var lastScreenOff = Date.distantPast
+    private var lastLock = Date.distantPast
+    private let power = PowerEvents()
 
     init() {
         d.register(defaults: ["enabled": false, "duration2": 0, "customMinutes": 90,
@@ -69,6 +71,13 @@ final class Controller: ObservableObject {
         let t = Timer(timeInterval: 1, repeats: true) { [weak self] _ in self?.onTick() }
         RunLoop.main.add(t, forMode: .common)
         timer = t
+
+        // 事件驱动：合盖瞬间处理；系统即将睡眠时先锁屏（保证「无」模式下合盖也一定锁上）
+        power.onLidChange = { [weak self] closed in self?.handleLid(closed: closed) }
+        power.onWillSleep = { [weak self] in
+            guard let self, self.enabled, self.lockOnLid, System.isLidClosed else { return }
+            self.lock(reason: "system will sleep")
+        }
     }
 
     // MARK: 派生状态
@@ -90,7 +99,7 @@ final class Controller: ObservableObject {
 
     /// 定时 / 电池保护属于无人值守操作，需要免密才能自动结束
     var needsRuleWarning: Bool {
-        !hasRule && wantsKeepAwake && (durationMinutes > 0 || lowBatteryOff || offOnUnplug)
+        enabled && !hasRule && wantsKeepAwake && (durationMinutes > 0 || lowBatteryOff || offOnUnplug)
     }
 
     // MARK: 总开关
@@ -99,9 +108,13 @@ final class Controller: ObservableObject {
         notice = nil
         if on {
             if wantsKeepAwake {
-                guard batteryAllowsKeepAwake() else { return }
-                guard System.setSleepDisabled(true, interactive: true) else { return }
-                startTimer()
+                if batteryAllowsKeepAwake() {
+                    guard System.setSleepDisabled(true, interactive: true) else { return }
+                    startTimer()
+                } else {
+                    // 电量太低：照常接管合盖（熄屏/锁屏），但不保持运行
+                    durationMinutes = Self.none
+                }
             }
             enabled = true
             lastLidClosed = System.isLidClosed
@@ -147,7 +160,7 @@ final class Controller: ObservableObject {
 
     private func batteryAllowsKeepAwake() -> Bool {
         if lowBatteryOff, let b = battery, b.onBattery, b.percent <= lowBatteryThreshold {
-            notice = "电量 \(b.percent)%，低于保护阈值 \(lowBatteryThreshold)%，请先接电源"
+            notice = "电量 \(b.percent)%，低于保护阈值 \(lowBatteryThreshold)%，暂不保持运行，请先接电源"
             return false
         }
         return true
@@ -179,6 +192,13 @@ final class Controller: ObservableObject {
             clearTimer()
             durationMinutes = Self.none
             notice = "\(reason)，已恢复合盖睡眠"
+            // 盖子已经合着：恢复睡眠设置不会自己触发睡眠，需要主动睡下去。
+            // 接着外接屏时（系统原生的合盖模式）不强制睡眠，避免打断外接屏使用。
+            if System.isLidClosed, !System.hasExternalDisplay {
+                NSLog("ArgusLid: keep-awake ended with lid closed → sleep now")
+                if lockOnLid { lock(reason: "before sleep") }
+                System.sleepNow()
+            }
         } else {
             notice = "\(reason)，但未设置免密，无法自动恢复睡眠"
         }
@@ -214,24 +234,30 @@ final class Controller: ObservableObject {
         stopKeepAwake("保持时间已到")
     }
 
-    /// 合盖处理（总开关开启即生效，与是否保持运行无关）：
-    /// 合盖瞬间锁屏（可选）+ 熄灭所有屏幕；合盖期间屏幕若被唤醒，每 10 秒再熄一次。
-    private func checkLid() {
-        let closed = System.isLidClosed
-        defer { lastLidClosed = closed }
+    /// 合盖处理（总开关开启即生效，与是否保持运行无关）。
+    /// 由合盖事件立即触发；每 2 秒的轮询作兜底，并在合盖期间屏幕被唤醒时每 10 秒再熄一次。
+    private func checkLid() { handleLid(closed: System.isLidClosed) }
+
+    private func handleLid(closed: Bool) {
+        let justClosed = closed && !lastLidClosed
+        lastLidClosed = closed
         guard enabled, closed else { return }
-        let justClosed = !lastLidClosed
         // 锁屏与熄屏相互独立：「合盖锁屏」任何情况下都生效，包括接着外接屏
-        if justClosed, lockOnLid {
-            NSLog("ArgusLid: lid closed → lock screen")
-            System.lockScreen()
-        }
+        if justClosed, lockOnLid { lock(reason: "lid closed") }
         if keepExternalOn, System.hasExternalDisplay { return }
         if justClosed || (System.anyDisplayAwake && Date().timeIntervalSince(lastScreenOff) >= 10) {
             NSLog("ArgusLid: lid closed → display sleep (\(justClosed ? "lid just closed" : "display woke"))")
             System.displaySleepNow()
             lastScreenOff = Date()
         }
+    }
+
+    /// 锁屏（3 秒内不重复锁）
+    private func lock(reason: String) {
+        guard Date().timeIntervalSince(lastLock) > 3 else { return }
+        NSLog("ArgusLid: lock screen (\(reason))")
+        System.lockScreen()
+        lastLock = Date()
     }
 
     private func checkBattery() {
