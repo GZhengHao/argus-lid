@@ -10,7 +10,7 @@ import ServiceManagement
 
 final class Controller: ObservableObject {
     static let none = -1
-    static let presets = [none, 0, 30, 60, 120, 240]
+    static let presets = [none, 0, 30, 60, 120, 240, 480]
 
     private let d = UserDefaults.standard
 

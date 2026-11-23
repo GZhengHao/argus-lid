@@ -41,7 +41,7 @@ ArgusLid was built to fix exactly that:
 | Turns **all screens off** the instant the lid closes | ✅ |
 | Turns screens off again if something wakes them while the lid is closed | ✅ |
 | Locks the screen on lid close (optional; programs keep running either way) | ✅ |
-| One switch to manage the lid; separately choose how long to keep running: None / ∞ / 30m / 1h / 2h / 4h / custom | ✅ |
+| One switch to manage the lid; separately choose how long to keep running: None / ∞ / 30m / 1h / 2h / 4h / 8h / custom | ✅ |
 | Battery guard: auto-off below 10/20/30/50% | ✅ |
 | Auto-off when the charger is unplugged (optional) | ✅ |
 | One-click toggle, no password after one-time setup | ✅ |
@@ -132,7 +132,7 @@ ArgusLid 就是为了解决这个问题而做的：**合盖瞬间主动熄灭所
 
 ### 功能
 
-- 一个总开关管理合盖行为；「合盖后保持运行」单独选：无 / ∞ / 30 分钟 / 1 / 2 / 4 小时 / 自定义
+- 一个总开关管理合盖行为；「合盖后保持运行」单独选：无 / ∞ / 30 分钟 / 1 / 2 / 4 / 8 小时 / 自定义
 - 合盖瞬间熄灭所有屏幕，可选同时锁屏（锁屏不影响程序运行）
 - 定时运行中可以随时延长，时间到后自动回到「无」（只熄屏/锁屏，系统照常睡眠）
 - 电池保护：电量低于 10/20/30/50% 时自动关闭
