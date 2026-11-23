@@ -79,20 +79,26 @@ struct HeaderCard: View {
 
             if let r = c.remaining {
                 VStack(alignment: .leading, spacing: 8) {
-                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    // 第一行：倒计时单独占一行，固定尺寸不截断
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
                         Text(r.clock)
-                            .font(.system(size: 30, weight: .medium, design: .monospaced))
+                            .font(.system(size: 28, weight: .medium, design: .monospaced))
                             .foregroundStyle(accent)
                             .contentTransition(.numericText(countsDown: true))
-                        Text("后恢复睡眠").font(.caption).foregroundStyle(.secondary)
-                        Spacer()
+                            .lineLimit(1)
+                            .fixedSize()
+                        Text("后自动睡眠").font(.caption).foregroundStyle(.secondary)
+                        Spacer(minLength: 0)
+                    }
+                    // 第二行：进度条 + 延长
+                    HStack(spacing: 8) {
+                        ProgressBar(value: c.progress ?? 0)
                         Button("+30m") { c.extend(by: 30) }
                         Button("+1h") { c.extend(by: 60) }
                     }
                     .buttonStyle(.glass)
                     .controlSize(.small)
                     .font(.system(.caption, design: .monospaced))
-                    ProgressBar(value: c.progress ?? 0)
                 }
             }
         }
@@ -122,7 +128,7 @@ struct DurationPicker: View {
             SectionTitle(title)
             LazyVGrid(columns: cols, spacing: 6) {
                 ForEach(Controller.presets, id: \.self) { m in
-                    Chip(title: shortLabel(m), symbol: m == 0 ? "infinity" : nil,
+                    Chip(title: shortLabel(m), symbol: symbol(m),
                          selected: c.durationMinutes == m) { c.selectDuration(m) }
                 }
                 Chip(title: "自定义", selected: c.isCustomDuration) { c.selectDuration(c.customMinutes) }
@@ -143,18 +149,30 @@ struct DurationPicker: View {
         .opacity(c.enabled ? 1 : 0.55)
     }
 
-    var title: String { "合盖后保持运行" }
+    var title: String { "合盖后" }
+
+    /// 「睡眠」和「一直运行」用图标，比文字更直观
+    func symbol(_ m: Int) -> String? {
+        switch m {
+        case Controller.none: return "moon.zzz.fill"
+        case 0: return "infinity"
+        default: return nil
+        }
+    }
 
     var hint: String {
         if !c.enabled { return "打开上方开关后生效" }
-        if c.durationMinutes == Controller.none { return "「无」：合盖只熄屏/锁屏，系统照常睡眠" }
-        return "点选会从现在重新计时；时间到后回到「无」，盖子合着会直接睡眠"
+        switch c.durationMinutes {
+        case Controller.none: return "🌙 睡眠：合盖后熄屏/锁屏，系统照常睡眠"
+        case 0: return "∞ 一直运行：合盖后熄屏/锁屏，程序不停"
+        default: return "合盖后继续运行 \(durationLabel(c.durationMinutes))，到点自动睡眠。点选会从现在重新计时"
+        }
     }
 
     func shortLabel(_ m: Int) -> String {
         switch m {
-        case Controller.none: return "无"
-        case 0: return "不限时"
+        case Controller.none: return "睡眠"
+        case 0: return "一直运行"
         case ..<60: return "\(m)m"
         default: return "\(m / 60)h"
         }
@@ -242,23 +260,46 @@ struct SettingsView: View {
                     Color.clear.frame(width: 32, height: 1)
                 }
 
-                Group_("合盖时（仅在 ArgusLid 开启时生效）") {
-                    SwitchRow(title: "合盖立即锁屏",
-                              caption: "锁屏不会影响程序运行。" + (c.lockOnLid ? "合盖瞬间锁定，接着外接屏时也会锁"
-                                       : "关闭后按系统设置锁屏：\(c.systemLockDescription)"),
+                Group_("合盖时") {
+                    SwitchRow(title: "立即锁屏",
+                              caption: c.lockOnLid ? "合盖瞬间锁定，接着外接屏时也会锁。不影响程序运行"
+                                                   : "按系统设置锁屏：\(c.systemLockDescription)",
                               isOn: $c.lockOnLid)
                     Divider().opacity(0.5)
-                    SwitchRow(title: "接外接显示器时保持亮屏",
-                              caption: c.keepExternalOn ? "接着外接屏时不熄屏，可以合盖当台式机用（是否锁屏看上一项）"
+                    SwitchRow(title: "外接显示器保持亮屏",
+                              caption: c.keepExternalOn ? "接着外接屏时不熄屏，可以合盖当台式机用"
                                                         : "合盖后熄灭所有屏幕，包括外接显示器",
                               isOn: $c.keepExternalOn)
-                    Text("ArgusLid 关闭时，合盖完全按系统默认行为：没接外接屏会睡眠；接着外接屏并插电时，外接屏保持亮、系统不睡。")
-                        .font(.caption2).foregroundStyle(.tertiary)
-                        .fixedSize(horizontal: false, vertical: true)
                 }
 
-                Group_("电池保护") {
-                    SwitchRow(title: "低电量时停止保持运行", caption: "电量低于阈值时恢复合盖睡眠，防止把电耗光", isOn: $c.lowBatteryOff)
+                Group_("保持运行时") {
+                    // 免密是定时、电池保护能自动生效的前提，放在最前
+                    HStack(alignment: .center) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            HStack(spacing: 6) {
+                                Text("免密切换")
+                                if c.hasRule {
+                                    Text("READY").font(.system(size: 9, weight: .bold, design: .monospaced))
+                                        .foregroundStyle(accent)
+                                        .padding(.horizontal, 5).padding(.vertical, 1)
+                                        .overlay(Capsule().strokeBorder(accent.opacity(0.6)))
+                                }
+                            }
+                            Text(c.hasRule ? "切换不弹密码；定时和下面的保护可自动生效"
+                                           : "建议开启：否则每次切换都要输密码，定时和下面的保护也无法自动生效")
+                                .font(.caption).foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Spacer(minLength: 10)
+                        if c.hasRule {
+                            Button("移除") { c.removeRule() }.buttonStyle(.glass).controlSize(.small)
+                        } else {
+                            Button("开启") { c.setupRule() }
+                                .buttonStyle(.glassProminent).tint(accent).controlSize(.small)
+                        }
+                    }
+                    Divider().opacity(0.5)
+                    SwitchRow(title: "低电量时停止", caption: "电量低于阈值时自动睡眠，防止把电耗光", isOn: $c.lowBatteryOff)
                     if c.lowBatteryOff {
                         HStack(spacing: 6) {
                             ForEach([10, 20, 30, 50], id: \.self) { v in
@@ -269,15 +310,14 @@ struct SettingsView: View {
                         }
                     }
                     Divider().opacity(0.5)
-                    SwitchRow(title: "拔掉电源时停止保持运行", caption: "适合只在插电时合盖工作", isOn: $c.offOnUnplug)
+                    SwitchRow(title: "拔掉电源时停止", caption: "只在插电时合盖工作", isOn: $c.offOnUnplug)
                 }
 
                 Group_("通用") {
                     SwitchRow(title: "开机自动启动", caption: nil,
                               isOn: Binding(get: { c.launchAtLogin }, set: { c.setLaunchAtLogin($0) }))
                     Divider().opacity(0.5)
-                    SwitchRow(title: "自动检查更新", caption: "有新版本时在面板上提示，一键更新",
-                              isOn: $updater.autoCheck)
+                    SwitchRow(title: "自动检查更新", caption: nil, isOn: $updater.autoCheck)
                     HStack {
                         Text("版本 \(updater.currentVersion)").font(.system(.caption, design: .monospaced))
                             .foregroundStyle(.secondary)
@@ -290,32 +330,10 @@ struct SettingsView: View {
                     }
                 }
 
-                Group_("权限") {
-                    HStack(alignment: .center) {
-                        VStack(alignment: .leading, spacing: 3) {
-                            HStack(spacing: 6) {
-                                Text("免密切换")
-                                if c.hasRule {
-                                    Text("READY").font(.system(size: 9, weight: .bold, design: .monospaced))
-                                        .foregroundStyle(accent)
-                                        .padding(.horizontal, 5).padding(.vertical, 1)
-                                        .overlay(Capsule().strokeBorder(accent.opacity(0.6)))
-                                }
-                            }
-                            Text(c.hasRule ? "sudo 仅放行 pmset disablesleep 0/1"
-                                           : "输一次密码，以后切换不再弹密码；定时和电池保护也才能自动恢复睡眠")
-                                .font(.caption).foregroundStyle(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        Spacer()
-                        if c.hasRule {
-                            Button("移除") { c.removeRule() }.buttonStyle(.glass).controlSize(.small)
-                        } else {
-                            Button("设置") { c.setupRule() }
-                                .buttonStyle(.glassProminent).tint(accent).controlSize(.small)
-                        }
-                    }
-                }
+                Text("以上设置在 ArgusLid 开启时生效；关闭时合盖完全按系统默认处理。")
+                    .font(.caption2).foregroundStyle(.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 4)
 
                 if let n = c.notice { Banner(icon: "info.circle", text: n) { c.notice = nil } }
             }

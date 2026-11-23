@@ -4,7 +4,7 @@
 //   1. 总开关 enabled：ArgusLid 是否接管合盖行为（熄屏、锁屏、外接屏处理）
 //   2. 保持运行时长 durationMinutes：合盖后系统是否保持运行
 //        none(-1) = 不保持，合盖照常睡眠；0 = 不限时；>0 = 定时（分钟）
-// 只有 enabled 且时长不是「无」时，才会 pmset disablesleep 1。
+// 只有 enabled 且时长不是「睡眠」时，才会 pmset disablesleep 1。
 import AppKit
 import ServiceManagement
 
@@ -72,7 +72,7 @@ final class Controller: ObservableObject {
         RunLoop.main.add(t, forMode: .common)
         timer = t
 
-        // 事件驱动：合盖瞬间处理；系统即将睡眠时先锁屏（保证「无」模式下合盖也一定锁上）
+        // 事件驱动：合盖瞬间处理；系统即将睡眠时先锁屏（保证「睡眠」模式下合盖也一定锁上）
         power.onLidChange = { [weak self] closed in self?.handleLid(closed: closed) }
         power.onWillSleep = { [weak self] in
             guard let self, self.enabled, self.lockOnLid, System.isLidClosed else { return }
@@ -186,7 +186,7 @@ final class Controller: ObservableObject {
         d.removeObject(forKey: "endDate"); d.removeObject(forKey: "startDate")
     }
 
-    /// 无人值守地结束「保持运行」：只用免密，绝不弹密码框。总开关保持开启，时长回到「无」
+    /// 无人值守地结束「保持运行」：只用免密，绝不弹密码框。总开关保持开启，时长回到「睡眠」
     private func stopKeepAwake(_ reason: String) {
         if System.setSleepDisabled(false, interactive: false) {
             clearTimer()
@@ -219,7 +219,7 @@ final class Controller: ObservableObject {
     func refresh() {
         let awake = System.isSleepDisabled
         if awake != keepingAwake { keepingAwake = awake }
-        // 在外部（终端）被关掉了：同步成「无」
+        // 在外部（终端）被关掉了：同步成「睡眠」
         if enabled, !awake, wantsKeepAwake, tick > 0 {
             durationMinutes = Self.none
             clearTimer()
@@ -306,8 +306,8 @@ extension TimeInterval {
 }
 
 func durationLabel(_ minutes: Int) -> String {
-    if minutes == Controller.none { return "无" }
-    if minutes == 0 { return "不限时" }
+    if minutes == Controller.none { return "睡眠" }
+    if minutes == 0 { return "一直运行" }
     if minutes < 60 { return "\(minutes) 分钟" }
     return minutes % 60 == 0 ? "\(minutes / 60) 小时" : String(format: "%.1f 小时", Double(minutes) / 60)
 }
