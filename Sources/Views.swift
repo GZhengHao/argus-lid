@@ -104,8 +104,9 @@ struct HeaderCard: View {
 
     var subtitle: String {
         if !c.enabled { return "已关闭：合盖按系统默认行为" }
-        let lid = c.keepExternalOn && System.hasExternalDisplay ? "接着外接屏，合盖不熄屏"
-                : (c.lockOnLid ? "合盖熄屏并锁屏" : "合盖熄屏")
+        let ext = c.keepExternalOn && System.hasExternalDisplay
+        let lid = ext ? (c.lockOnLid ? "合盖锁屏，外接屏保持亮" : "合盖时外接屏保持亮")
+                      : (c.lockOnLid ? "合盖熄屏并锁屏" : "合盖熄屏")
         if !c.keepingAwake { return "\(lid) · 系统正常睡眠" }
         if let e = c.endDate { return "\(lid) · \(e.formatted(date: .omitted, time: .shortened)) 前保持运行" }
         return "\(lid) · 程序一直运行"
@@ -197,11 +198,19 @@ struct Footer: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Button { System.displaySleepNow() } label: {
-                Label("立即熄屏", systemImage: "display")
+            Button { System.lockScreen() } label: {
+                Label("锁屏", systemImage: "lock.fill")
             }
             .buttonStyle(.glass)
-            .help("马上熄灭所有屏幕，不影响系统运行")
+            .help("立即锁屏，屏幕保持亮着显示登录界面；程序继续运行")
+            Button {
+                System.lockScreen()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { System.displaySleepNow() }
+            } label: {
+                Label("锁屏并熄屏", systemImage: "moon.fill")
+            }
+            .buttonStyle(.glass)
+            .help("立即锁屏并熄灭所有屏幕，适合临时离开；程序继续运行")
             Spacer()
             Button(action: openSettings) { Image(systemName: "gearshape") }
                 .buttonStyle(.glass).help("设置")
@@ -239,12 +248,12 @@ struct SettingsView: View {
 
                 Group_("合盖时（仅在 ArgusLid 开启时生效）") {
                     SwitchRow(title: "合盖立即锁屏",
-                              caption: "锁屏不会影响程序运行。" + (c.lockOnLid ? "合盖瞬间锁定，最安全"
+                              caption: "锁屏不会影响程序运行。" + (c.lockOnLid ? "合盖瞬间锁定，接着外接屏时也会锁"
                                        : "关闭后按系统设置锁屏：\(c.systemLockDescription)"),
                               isOn: $c.lockOnLid)
                     Divider().opacity(0.5)
                     SwitchRow(title: "接外接显示器时保持亮屏",
-                              caption: c.keepExternalOn ? "接着外接屏时不熄屏、不锁屏，可以合盖当台式机用"
+                              caption: c.keepExternalOn ? "接着外接屏时不熄屏，可以合盖当台式机用（是否锁屏看上一项）"
                                                         : "合盖后熄灭所有屏幕，包括外接显示器",
                               isOn: $c.keepExternalOn)
                     Text("ArgusLid 关闭时，合盖完全按系统默认行为：没接外接屏会睡眠；接着外接屏并插电时，外接屏保持亮、系统不睡。")

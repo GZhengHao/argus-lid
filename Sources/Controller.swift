@@ -220,9 +220,13 @@ final class Controller: ObservableObject {
         let closed = System.isLidClosed
         defer { lastLidClosed = closed }
         guard enabled, closed else { return }
-        if keepExternalOn, System.hasExternalDisplay { return }
         let justClosed = !lastLidClosed
-        if justClosed, lockOnLid { System.lockScreen() }
+        // 锁屏与熄屏相互独立：「合盖锁屏」任何情况下都生效，包括接着外接屏
+        if justClosed, lockOnLid {
+            NSLog("ArgusLid: lid closed → lock screen")
+            System.lockScreen()
+        }
+        if keepExternalOn, System.hasExternalDisplay { return }
         if justClosed || (System.anyDisplayAwake && Date().timeIntervalSince(lastScreenOff) >= 10) {
             NSLog("ArgusLid: lid closed → display sleep (\(justClosed ? "lid just closed" : "display woke"))")
             System.displaySleepNow()
