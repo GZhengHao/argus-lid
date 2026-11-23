@@ -52,27 +52,27 @@ struct HeaderCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
-                Image(systemName: c.isOn ? "eye.fill" : "eye.slash")
+                Image(systemName: !c.enabled ? "eye.slash" : (c.keepingAwake ? "eye.fill" : "eye"))
                     .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(c.isOn ? accent : .secondary)
+                    .foregroundStyle(c.enabled ? accent : .secondary)
                     .contentTransition(.symbolEffect(.replace))
                     .frame(width: 40, height: 40)
-                    .glassEffect(.regular.tint(c.isOn ? accent.opacity(0.25) : nil), in: .circle)
-                    .shadow(color: c.isOn ? accent.opacity(0.5) : .clear, radius: 8)
+                    .glassEffect(.regular.tint(c.enabled ? accent.opacity(0.25) : nil), in: .circle)
+                    .shadow(color: c.enabled ? accent.opacity(0.5) : .clear, radius: 8)
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text("ArgusLid").font(.headline)
-                    Text(c.isOn ? "ON" : "OFF")
+                    Text(c.enabled ? "ON" : "OFF")
                         .font(.system(size: 10, weight: .bold, design: .monospaced))
-                        .foregroundStyle(c.isOn ? accent : .secondary)
+                        .foregroundStyle(c.enabled ? accent : .secondary)
                 }
                 Spacer()
-                GeekSwitch(isOn: Binding(get: { c.isOn }, set: { c.setOn($0) }), size: .large)
+                GeekSwitch(isOn: Binding(get: { c.enabled }, set: { c.setEnabled($0) }), size: .large)
             }
 
             // 状态说明单独占一行，避免被开关挤到截断
             HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Circle().fill(c.isOn ? accent : Color.secondary.opacity(0.5)).frame(width: 6, height: 6)
+                Circle().fill(c.enabled ? accent : Color.secondary.opacity(0.5)).frame(width: 6, height: 6)
                 Text(subtitle).font(.caption).foregroundStyle(.secondary)
                     .lineLimit(2).fixedSize(horizontal: false, vertical: true)
             }
@@ -98,26 +98,28 @@ struct HeaderCard: View {
         }
         .padding(14)
         .glassEffect(.regular, in: .rect(cornerRadius: 18))
-        .animation(.snappy, value: c.isOn)
+        .animation(.snappy, value: c.enabled)
         .animation(.snappy, value: c.endDate)
     }
 
     var subtitle: String {
-        if !c.isOn { return "已关闭：合盖后按系统默认行为（通常会睡眠）" }
-        let lid = c.lockOnLid ? "合盖熄屏并锁屏，程序继续运行" : "合盖熄屏，程序继续运行"
-        if let e = c.endDate { return "\(lid) · \(e.formatted(date: .omitted, time: .shortened)) 自动关闭" }
-        return lid
+        if !c.enabled { return "已关闭：合盖按系统默认行为" }
+        let lid = c.keepExternalOn && System.hasExternalDisplay ? "接着外接屏，合盖不熄屏"
+                : (c.lockOnLid ? "合盖熄屏并锁屏" : "合盖熄屏")
+        if !c.keepingAwake { return "\(lid) · 系统正常睡眠" }
+        if let e = c.endDate { return "\(lid) · \(e.formatted(date: .omitted, time: .shortened)) 前保持运行" }
+        return "\(lid) · 程序一直运行"
     }
 }
 
 struct DurationPicker: View {
     @EnvironmentObject var c: Controller
-    private let cols = Array(repeating: GridItem(.flexible(), spacing: 8), count: 3)
+    private let cols = Array(repeating: GridItem(.flexible(), spacing: 6), count: 4)
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionTitle(c.isOn ? "保持时长 · 点选从现在重新计时" : "保持时长")
-            LazyVGrid(columns: cols, spacing: 8) {
+            SectionTitle(title)
+            LazyVGrid(columns: cols, spacing: 6) {
                 ForEach(Controller.presets, id: \.self) { m in
                     Chip(title: shortLabel(m), selected: c.durationMinutes == m) { c.selectDuration(m) }
                 }
@@ -133,11 +135,27 @@ struct DurationPicker: View {
                 }
                 .buttonStyle(.glass)
             }
+            Text(hint).font(.caption2).foregroundStyle(.tertiary)
+                .fixedSize(horizontal: false, vertical: true)
         }
+        .opacity(c.enabled ? 1 : 0.55)
+    }
+
+    var title: String { "合盖后保持运行" }
+
+    var hint: String {
+        if !c.enabled { return "打开上方开关后生效" }
+        if c.durationMinutes == Controller.none { return "「无」：合盖只熄屏/锁屏，系统照常睡眠" }
+        return "点选会从现在重新计时；时间到后自动回到「无」"
     }
 
     func shortLabel(_ m: Int) -> String {
-        m == 0 ? "∞ 不限时" : (m < 60 ? "\(m)m" : "\(m / 60)h")
+        switch m {
+        case Controller.none: return "无"
+        case 0: return "∞"
+        case ..<60: return "\(m)m"
+        default: return "\(m / 60)h"
+        }
     }
 }
 

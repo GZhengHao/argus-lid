@@ -12,11 +12,14 @@ struct ArgusLidApp: App {
         MenuBarExtra {
             RootView().environmentObject(c).environmentObject(updater)
         } label: {
-            if c.isOn {
+            // 关闭：划掉的眼睛；开启但不保持运行：空心眼睛；保持运行：实心眼睛（+ 剩余时间）
+            if !c.enabled {
+                Image(systemName: "eye.slash")
+            } else if c.keepingAwake {
                 Image(systemName: "eye.fill")
                 if let r = c.remaining { Text(shortRemaining(r)) }
             } else {
-                Image(systemName: "eye.slash")
+                Image(systemName: "eye")
             }
         }
         .menuBarExtraStyle(.window)

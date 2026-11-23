@@ -1,14 +1,22 @@
 // 状态与逻辑
+//
+// 两层模型：
+//   1. 总开关 enabled：ArgusLid 是否接管合盖行为（熄屏、锁屏、外接屏处理）
+//   2. 保持运行时长 durationMinutes：合盖后系统是否保持运行
+//        none(-1) = 不保持，合盖照常睡眠；0 = 不限时；>0 = 定时（分钟）
+// 只有 enabled 且时长不是「无」时，才会 pmset disablesleep 1。
 import AppKit
 import ServiceManagement
 
 final class Controller: ObservableObject {
-    static let presets = [0, 30, 60, 120, 240]   // 分钟，0 = 不限时
+    static let none = -1
+    static let presets = [none, 0, 30, 60, 120, 240]
 
     private let d = UserDefaults.standard
 
     // 运行状态
-    @Published private(set) var isOn = false
+    @Published private(set) var enabled: Bool { didSet { d.set(enabled, forKey: "enabled") } }
+    @Published private(set) var keepingAwake = false        // 系统实际的 SleepDisabled
     @Published private(set) var endDate: Date?
     @Published private(set) var startDate: Date?
     @Published private(set) var now = Date()
@@ -16,8 +24,8 @@ final class Controller: ObservableObject {
     @Published private(set) var hasRule = false
     @Published var notice: String?
 
-    // 定时选择
-    @Published var durationMinutes: Int { didSet { d.set(durationMinutes, forKey: "duration") } }
+    // 时长
+    @Published private(set) var durationMinutes: Int { didSet { d.set(durationMinutes, forKey: "duration2") } }
     @Published var customMinutes: Int { didSet { d.set(customMinutes, forKey: "customMinutes") } }
 
     // 设置
@@ -36,9 +44,12 @@ final class Controller: ObservableObject {
     private var lastScreenOff = Date.distantPast
 
     init() {
-        d.register(defaults: ["duration": 0, "customMinutes": 90, "keepExternalOn": false, "lockOnLid": true,
+        d.register(defaults: ["enabled": false, "duration2": 0, "customMinutes": 90,
+                              "keepExternalOn": false, "lockOnLid": true,
                               "lowBatteryOff": true, "threshold": 20, "offOnUnplug": false])
-        durationMinutes = d.integer(forKey: "duration")
+        enabled = d.bool(forKey: "enabled")
+        // 旧版本只有「不限时 / 定时」，沿用其选择
+        durationMinutes = d.object(forKey: "duration2") as? Int ?? d.object(forKey: "duration") as? Int ?? 0
         customMinutes = d.integer(forKey: "customMinutes")
         keepExternalOn = d.bool(forKey: "keepExternalOn")
         lockOnLid = d.bool(forKey: "lockOnLid")
@@ -49,9 +60,11 @@ final class Controller: ObservableObject {
         startDate = d.object(forKey: "startDate") as? Date
 
         refresh()
+        // 从旧版本升级、或在终端里开过：系统已在保持运行，视为已开启
+        if keepingAwake && !enabled { enabled = true }
         lastLidClosed = System.isLidClosed
         lastOnBattery = battery?.onBattery
-        checkTimer()   // App 重启时，若已超时则立即关闭
+        checkTimer()   // 重启 App 时若已超时则立即结束
 
         let t = Timer(timeInterval: 1, repeats: true) { [weak self] _ in self?.onTick() }
         RunLoop.main.add(t, forMode: .common)
@@ -60,10 +73,11 @@ final class Controller: ObservableObject {
 
     // MARK: 派生状态
 
+    var wantsKeepAwake: Bool { durationMinutes != Self.none }
     var isCustomDuration: Bool { !Self.presets.contains(durationMinutes) }
 
     var remaining: TimeInterval? {
-        guard isOn, let e = endDate else { return nil }
+        guard enabled, keepingAwake, let e = endDate else { return nil }
         return max(0, e.timeIntervalSince(now))
     }
 
@@ -74,31 +88,50 @@ final class Controller: ObservableObject {
         return total > 0 ? 1 - r / total : nil
     }
 
-    /// 是否需要免密才能完整工作（定时 / 电池保护属于无人值守操作）
-    var needsRuleWarning: Bool { !hasRule && (durationMinutes > 0 || lowBatteryOff || offOnUnplug) }
+    /// 定时 / 电池保护属于无人值守操作，需要免密才能自动结束
+    var needsRuleWarning: Bool {
+        !hasRule && wantsKeepAwake && (durationMinutes > 0 || lowBatteryOff || offOnUnplug)
+    }
 
-    // MARK: 开关
+    // MARK: 总开关
 
-    func setOn(_ on: Bool) {
+    func setEnabled(_ on: Bool) {
         notice = nil
         if on {
-            if lowBatteryOff, let b = battery, b.onBattery, b.percent <= lowBatteryThreshold {
-                notice = "电量 \(b.percent)%，低于保护阈值 \(lowBatteryThreshold)%，请先接电源"
-                return
+            if wantsKeepAwake {
+                guard batteryAllowsKeepAwake() else { return }
+                guard System.setSleepDisabled(true, interactive: true) else { return }
+                startTimer()
             }
-            guard System.setSleepDisabled(true, interactive: true) else { return }
-            startTimerIfNeeded()
+            enabled = true
+            lastLidClosed = System.isLidClosed
         } else {
-            guard System.setSleepDisabled(false, interactive: true) else { return }
+            if keepingAwake { guard System.setSleepDisabled(false, interactive: true) else { return } }
             clearTimer()
+            enabled = false
         }
         refresh()
     }
 
-    /// 选择时长；运行中则从现在开始重新计时
+    // MARK: 时长
+
+    /// 选择时长。已开启时立即生效（从现在开始重新计时）；未开启时只记下来
     func selectDuration(_ minutes: Int) {
-        durationMinutes = minutes
-        if isOn { startTimerIfNeeded() }
+        notice = nil
+        guard enabled else { durationMinutes = minutes; return }
+        if minutes == Self.none {
+            if keepingAwake { guard System.setSleepDisabled(false, interactive: true) else { return } }
+            durationMinutes = minutes
+            clearTimer()
+        } else {
+            if !keepingAwake {
+                guard batteryAllowsKeepAwake() else { return }
+                guard System.setSleepDisabled(true, interactive: true) else { return }
+            }
+            durationMinutes = minutes
+            startTimer()
+        }
+        refresh()
     }
 
     func adjustCustom(by delta: Int) {
@@ -106,13 +139,21 @@ final class Controller: ObservableObject {
         selectDuration(customMinutes)
     }
 
-    /// 运行中延长 / 缩短
+    /// 运行中延长
     func extend(by minutes: Int) {
-        guard isOn, let e = endDate else { return }
+        guard let e = endDate, remaining != nil else { return }
         setEnd(e.addingTimeInterval(TimeInterval(minutes * 60)), keepStart: true)
     }
 
-    private func startTimerIfNeeded() {
+    private func batteryAllowsKeepAwake() -> Bool {
+        if lowBatteryOff, let b = battery, b.onBattery, b.percent <= lowBatteryThreshold {
+            notice = "电量 \(b.percent)%，低于保护阈值 \(lowBatteryThreshold)%，请先接电源"
+            return false
+        }
+        return true
+    }
+
+    private func startTimer() {
         if durationMinutes > 0 {
             setEnd(Date().addingTimeInterval(TimeInterval(durationMinutes * 60)), keepStart: false)
         } else {
@@ -132,13 +173,14 @@ final class Controller: ObservableObject {
         d.removeObject(forKey: "endDate"); d.removeObject(forKey: "startDate")
     }
 
-    /// 无人值守的自动关闭：只用免密，绝不弹密码框
-    private func autoOff(_ reason: String) {
+    /// 无人值守地结束「保持运行」：只用免密，绝不弹密码框。总开关保持开启，时长回到「无」
+    private func stopKeepAwake(_ reason: String) {
         if System.setSleepDisabled(false, interactive: false) {
             clearTimer()
-            notice = "已自动关闭：\(reason)"
+            durationMinutes = Self.none
+            notice = "\(reason)，已恢复合盖睡眠"
         } else {
-            notice = "\(reason)，但未设置免密，无法自动关闭"
+            notice = "\(reason)，但未设置免密，无法自动恢复睡眠"
         }
         refresh()
     }
@@ -155,25 +197,29 @@ final class Controller: ObservableObject {
     }
 
     func refresh() {
-        let on = System.isSleepDisabled
-        if on != isOn { isOn = on }
-        if !on, endDate != nil { clearTimer() }   // 被外部（终端）关掉了
+        let awake = System.isSleepDisabled
+        if awake != keepingAwake { keepingAwake = awake }
+        // 在外部（终端）被关掉了：同步成「无」
+        if enabled, !awake, wantsKeepAwake, tick > 0 {
+            durationMinutes = Self.none
+            clearTimer()
+        }
         hasRule = System.hasPasswordlessRule
         battery = System.battery
         launchAtLogin = SMAppService.mainApp.status == .enabled
     }
 
     private func checkTimer() {
-        guard isOn, let e = endDate, Date() >= e else { return }
-        autoOff("定时结束")
+        guard keepingAwake, let e = endDate, Date() >= e else { return }
+        stopKeepAwake("保持时间已到")
     }
 
-    /// 合盖时熄屏：禁用睡眠后系统不会自己关内屏，所以由 App 负责。
-    /// 合盖瞬间立即熄屏；盖子保持合上期间，若屏幕被唤醒（通知、外设等）每 10 秒再熄一次。
+    /// 合盖处理（总开关开启即生效，与是否保持运行无关）：
+    /// 合盖瞬间锁屏（可选）+ 熄灭所有屏幕；合盖期间屏幕若被唤醒，每 10 秒再熄一次。
     private func checkLid() {
         let closed = System.isLidClosed
         defer { lastLidClosed = closed }
-        guard isOn, closed else { return }
+        guard enabled, closed else { return }
         if keepExternalOn, System.hasExternalDisplay { return }
         let justClosed = !lastLidClosed
         if justClosed, lockOnLid { System.lockScreen() }
@@ -188,9 +234,9 @@ final class Controller: ObservableObject {
         battery = System.battery
         guard let b = battery else { return }
         defer { lastOnBattery = b.onBattery }
-        guard isOn else { return }
-        if offOnUnplug, b.onBattery, lastOnBattery == false { autoOff("已拔掉电源"); return }
-        if lowBatteryOff, b.onBattery, b.percent <= lowBatteryThreshold { autoOff("电量降到 \(b.percent)%") }
+        guard keepingAwake, enabled else { return }
+        if offOnUnplug, b.onBattery, lastOnBattery == false { stopKeepAwake("已拔掉电源"); return }
+        if lowBatteryOff, b.onBattery, b.percent <= lowBatteryThreshold { stopKeepAwake("电量降到 \(b.percent)%") }
     }
 
     // MARK: 设置
@@ -213,8 +259,10 @@ final class Controller: ObservableObject {
         refresh()
     }
 
+    /// 退出：恢复正常睡眠，并关闭总开关
     func quit() {
-        if isOn { _ = System.setSleepDisabled(false, interactive: true) }
+        if keepingAwake { _ = System.setSleepDisabled(false, interactive: true) }
+        enabled = false
         NSApp.terminate(nil)
     }
 }
@@ -228,6 +276,7 @@ extension TimeInterval {
 }
 
 func durationLabel(_ minutes: Int) -> String {
+    if minutes == Controller.none { return "无" }
     if minutes == 0 { return "不限时" }
     if minutes < 60 { return "\(minutes) 分钟" }
     return minutes % 60 == 0 ? "\(minutes / 60) 小时" : String(format: "%.1f 小时", Double(minutes) / 60)
